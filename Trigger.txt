@@ -1,0 +1,97 @@
+1.
+CREATE TABLE employees (
+    emp_id INT PRIMARY KEY,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    salary DECIMAL(10,2),
+    department_id INT
+);
+
+2.
+CREATE TABLE salary_audit (
+    audit_id INT AUTO_INCREMENT PRIMARY KEY,
+    emp_id INT,
+    old_salary DECIMAL(10,2),
+    new_salary DECIMAL(10,2),
+    operation ENUM('INSERT','UPDATE','DELETE'),
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changed_by VARCHAR(100)
+);
+
+3.
+DELIMITER $$
+
+CREATE TRIGGER before_employee_insert
+BEFORE INSERT ON employees
+FOR EACH ROW
+BEGIN
+    INSERT INTO salary_audit
+    (emp_id, old_salary, new_salary, operation, changed_at, changed_by)
+    VALUES
+    (NEW.emp_id, NULL, NEW.salary, 'INSERT',
+     CURRENT_TIMESTAMP, CURRENT_USER());
+END$$
+
+DELIMITER ;
+
+4.
+DELIMITER $$
+
+CREATE TRIGGER after_employee_update
+AFTER UPDATE ON employees
+FOR EACH ROW
+BEGIN
+    IF NOT (OLD.salary <=> NEW.salary) THEN
+        INSERT INTO salary_audit
+        (emp_id, old_salary, new_salary, operation, changed_at, changed_by)
+        VALUES
+        (NEW.emp_id, OLD.salary, NEW.salary, 'UPDATE',
+         CURRENT_TIMESTAMP, CURRENT_USER());
+    END IF;
+END$$
+
+DELIMITER ;
+
+5.
+DELIMITER $$
+
+CREATE TRIGGER after_employee_delete
+AFTER DELETE ON employees
+FOR EACH ROW
+BEGIN
+    INSERT INTO salary_audit
+    (emp_id, old_salary, new_salary, operation, changed_at, changed_by)
+    VALUES
+    (OLD.emp_id, OLD.salary, NULL, 'DELETE',
+     CURRENT_TIMESTAMP, CURRENT_USER());
+END$$
+
+DELIMITER ;
+
+6.
+INSERT INTO employees
+(emp_id, first_name, last_name, salary, department_id)
+VALUES
+(101, 'Rahul', 'Sharma', 45000.00, 10),
+(102, 'Priya', 'Reddy', 52000.00, 20),
+(103, 'Amit', 'Kumar', 60000.00, 10);
+
+7.
+-- INSERT
+INSERT INTO employees
+VALUES (104, 'Sneha', 'Patel', 48000.00, 30);
+
+-- UPDATE salary
+UPDATE employees
+SET salary = 55000.00
+WHERE emp_id = 102;
+
+-- DELETE employee
+DELETE FROM employees
+WHERE emp_id = 103;
+
+8.
+SELECT audit_id, emp_id, old_salary, new_salary,
+       operation, changed_at, changed_by
+FROM salary_audit
+ORDER BY audit_id;
